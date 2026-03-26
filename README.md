@@ -1,6 +1,6 @@
 # html-md-sync
 
-Deterministically sync content between HTML (via `data-sync`) and Markdown while preserving JS/CSS and DOM structure. Give the `.md` to LLMs/editors and keep the `.html` protected.
+npm publish
 
 ## Why
 - Decoupled content: text lives in Markdown; structure lives in HTML.
