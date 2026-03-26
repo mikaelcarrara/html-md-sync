@@ -1,0 +1,1151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>html-md-sync — Sync HTML ↔ Markdown without breaking your layout</title>
+<meta name="description" content="Sync content between HTML and Markdown with layout safety using html-md-sync. Simple push/pull CLI with a data-attributes contract.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,700;1,300&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0c0c0e;
+    --bg2: #111116;
+    --bg3: #18181f;
+    --border: rgba(255,255,255,0.08);
+    --border-bright: rgba(255,255,255,0.15);
+    --text: #e8e8f0;
+    --text-dim: #8888aa;
+    --text-dimmer: #55556a;
+    --accent: #c6f135;
+    --accent-dim: rgba(198,241,53,0.12);
+    --accent-glow: rgba(198,241,53,0.25);
+    --red: #ff6b6b;
+    --blue: #7ec8e3;
+    --purple: #c084fc;
+    --font-mono: 'JetBrains Mono', monospace;
+    --font-serif: 'DM Serif Display', serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 15px;
+    line-height: 1.7;
+    overflow-x: hidden;
+  }
+
+  /* ── NOISE TEXTURE ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.5;
+  }
+
+  /* ── NAV ── */
+  nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 2rem;
+    background: rgba(12,12,14,0.85);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .nav-logo {
+    font-family: var(--font-mono);
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--accent);
+    letter-spacing: 0.02em;
+    text-decoration: none;
+  }
+
+  .nav-logo span { color: var(--text-dim); font-weight: 300; }
+
+  .nav-links {
+    display: flex;
+    gap: 2rem;
+    list-style: none;
+  }
+
+  .nav-links a {
+    color: var(--text-dim);
+    text-decoration: none;
+    font-size: 13px;
+    transition: color 0.2s;
+  }
+
+  .nav-links a:hover { color: var(--text); }
+
+  .nav-cta {
+    background: var(--accent);
+    color: var(--bg) !important;
+    font-weight: 700;
+    padding: 0.4rem 1rem;
+    border-radius: 3px;
+    font-size: 12px !important;
+    letter-spacing: 0.05em;
+    transition: opacity 0.2s !important;
+  }
+
+  .nav-cta:hover { opacity: 0.85; }
+
+  /* ── SECTIONS ── */
+  section { position: relative; z-index: 1; }
+
+  .container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 0 2rem;
+  }
+
+  .container-wide {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 2rem;
+  }
+
+  /* ── HERO ── */
+  #hero {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding-top: 80px;
+    overflow: hidden;
+  }
+
+  .hero-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4rem;
+    align-items: center;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 2rem;
+  }
+
+  .hero-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 1.5rem;
+  }
+
+  .hero-eyebrow::before {
+    content: '';
+    display: block;
+    width: 24px;
+    height: 1px;
+    background: var(--accent);
+  }
+
+  .hero-title {
+    font-family: var(--font-serif);
+    font-size: clamp(2.4rem, 5vw, 3.8rem);
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+    color: var(--text);
+    margin-bottom: 1.2rem;
+  }
+
+  .hero-title em {
+    font-style: italic;
+    color: var(--accent);
+  }
+
+  .hero-subtitle {
+    font-size: 14px;
+    color: var(--text-dim);
+    line-height: 1.8;
+    margin-bottom: 2.5rem;
+    max-width: 460px;
+  }
+
+  .hero-subtitle code {
+    color: var(--accent);
+    background: var(--accent-dim);
+    padding: 0 4px;
+    border-radius: 2px;
+    font-size: 13px;
+  }
+
+  .hero-actions {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: var(--accent);
+    color: var(--bg);
+    font-family: var(--font-mono);
+    font-weight: 700;
+    font-size: 13px;
+    padding: 0.75rem 1.5rem;
+    border-radius: 3px;
+    text-decoration: none;
+    letter-spacing: 0.03em;
+    transition: opacity 0.2s, transform 0.2s;
+  }
+
+  .btn-primary:hover { opacity: 0.88; transform: translateY(-1px); }
+
+  .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: transparent;
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    padding: 0.75rem 1.5rem;
+    border-radius: 3px;
+    border: 1px solid var(--border-bright);
+    text-decoration: none;
+    transition: color 0.2s, border-color 0.2s;
+  }
+
+  .btn-secondary:hover { color: var(--text); border-color: rgba(255,255,255,0.3); }
+
+  /* ── TERMINAL WINDOW ── */
+  .terminal {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04);
+  }
+
+  .terminal-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    background: var(--bg3);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .terminal-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+  }
+
+  .terminal-dot.red { background: #ff5f57; }
+  .terminal-dot.yellow { background: #ffbd2e; }
+  .terminal-dot.green { background: #28c840; }
+
+  .terminal-title {
+    font-size: 11px;
+    color: var(--text-dimmer);
+    margin-left: auto;
+    margin-right: auto;
+    letter-spacing: 0.05em;
+  }
+
+  .terminal-body {
+    padding: 1.5rem;
+    font-size: 13px;
+    line-height: 2;
+  }
+
+  .t-prompt { color: var(--text-dimmer); }
+  .t-cmd { color: var(--text); }
+  .t-acc { color: var(--accent); }
+  .t-blue { color: var(--blue); }
+  .t-purple { color: var(--purple); }
+  .t-dim { color: var(--text-dim); }
+  .t-red { color: var(--red); }
+
+  /* ── BADGE STRIP ── */
+  .badge-strip {
+    padding: 1.5rem 0;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    margin-top: 5rem;
+    background: var(--bg2);
+  }
+
+  .badge-strip-inner {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 0 2rem;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    align-items: center;
+  }
+
+  .badge {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .badge-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    flex-shrink: 0;
+  }
+
+  /* ── SECTION HEADERS ── */
+  .section-label {
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 1rem;
+  }
+
+  .section-title {
+    font-family: var(--font-serif);
+    font-size: clamp(1.8rem, 3.5vw, 2.8rem);
+    line-height: 1.15;
+    color: var(--text);
+    margin-bottom: 1rem;
+  }
+
+  .section-title em { font-style: italic; }
+
+  .section-desc {
+    font-size: 14px;
+    color: var(--text-dim);
+    line-height: 1.8;
+    max-width: 560px;
+  }
+
+  /* ── FEATURES ── */
+  #features { padding: 7rem 0; }
+
+  .features-header {
+    margin-bottom: 4rem;
+  }
+
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .feature-card {
+    background: var(--bg);
+    padding: 2rem;
+    transition: background 0.2s;
+  }
+
+  .feature-card:hover { background: var(--bg2); }
+
+  .feature-icon {
+    color: var(--text-dim);
+    margin-bottom: 1.2rem;
+    display: flex;
+  }
+
+  .feature-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 0.5rem;
+    letter-spacing: 0.02em;
+  }
+
+  .feature-desc {
+    font-size: 12.5px;
+    color: var(--text-dim);
+    line-height: 1.7;
+  }
+
+  /* ── HOW IT WORKS ── */
+  #how { padding: 7rem 0; background: var(--bg2); }
+
+  .how-header { margin-bottom: 4rem; }
+
+  .steps {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .step {
+    display: grid;
+    grid-template-columns: 64px 1fr;
+    gap: 2rem;
+    padding: 2.5rem 0;
+    border-top: 1px solid var(--border);
+  }
+
+  .step:last-child { border-bottom: 1px solid var(--border); }
+
+  .step-num {
+    font-family: var(--font-serif);
+    font-size: 2.5rem;
+    color: var(--text-dimmer);
+    line-height: 1;
+    padding-top: 0.2rem;
+    font-style: italic;
+  }
+
+  .step-content {}
+
+  .step-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 0.5rem;
+  }
+
+  .step-desc {
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-bottom: 1.2rem;
+    line-height: 1.7;
+  }
+
+  .step-desc code {
+    color: var(--accent);
+    background: var(--accent-dim);
+    padding: 0 4px;
+    border-radius: 2px;
+  }
+
+  /* ── CODE BLOCKS ── */
+  .code-split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+
+  .code-block {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .code-block-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--text-dimmer);
+    letter-spacing: 0.08em;
+  }
+
+  .lang-badge {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 2px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+  }
+
+  .lang-html { background: rgba(126,200,227,0.15); color: var(--blue); }
+  .lang-md { background: rgba(192,132,252,0.15); color: var(--purple); }
+  .lang-sh { background: var(--accent-dim); color: var(--accent); }
+  .lang-json { background: rgba(255,107,107,0.1); color: var(--red); }
+
+  pre {
+    padding: 1rem;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 1.8;
+    overflow-x: auto;
+    color: var(--text-dim);
+  }
+
+  pre .hl { color: var(--accent); }
+  pre .c { color: var(--text-dimmer); font-style: italic; }
+  pre .attr { color: var(--blue); }
+  pre .str { color: var(--purple); }
+  pre .kw { color: var(--red); }
+  pre .tag { color: var(--blue); }
+  pre .val { color: var(--accent); }
+
+  /* ── INSTALL ── */
+  #install { padding: 7rem 0; }
+
+  .install-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4rem;
+    align-items: start;
+  }
+
+  .cli-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+    margin-top: 1.5rem;
+  }
+
+  .cli-table tr {
+    border-top: 1px solid var(--border);
+  }
+
+  .cli-table td {
+    padding: 0.7rem 0.5rem;
+    vertical-align: top;
+  }
+
+  .cli-table td:first-child {
+    color: var(--accent);
+    white-space: nowrap;
+    padding-right: 1.5rem;
+    font-size: 12px;
+  }
+
+  .cli-table td:last-child {
+    color: var(--text-dim);
+  }
+
+  /* ── CONFIG ── */
+  #config { padding: 7rem 0; background: var(--bg2); }
+
+  /* ── FAQ ── */
+  #faq { padding: 7rem 0; }
+
+  .faq-list { display: flex; flex-direction: column; gap: 0; margin-top: 3rem; }
+
+  .faq-item {
+    border-top: 1px solid var(--border);
+  }
+
+  .faq-item:last-child { border-bottom: 1px solid var(--border); }
+
+  .faq-q {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.2rem 0;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text);
+    transition: color 0.2s;
+    gap: 1rem;
+    user-select: none;
+    list-style: none;
+  }
+
+  .faq-q:hover { color: var(--accent); }
+
+  .faq-q::marker { display: none; }
+
+  .faq-icon {
+    font-size: 18px;
+    color: var(--text-dimmer);
+    transition: transform 0.25s, color 0.2s;
+    flex-shrink: 0;
+    font-style: normal;
+  }
+
+  details[open] .faq-icon { transform: rotate(45deg); color: var(--accent); }
+
+  .faq-a {
+    font-size: 13px;
+    color: var(--text-dim);
+    line-height: 1.8;
+    padding-bottom: 1.2rem;
+    max-width: 620px;
+  }
+
+  .faq-a code {
+    color: var(--accent);
+    background: var(--accent-dim);
+    padding: 0 4px;
+    border-radius: 2px;
+    font-size: 12px;
+  }
+
+  /* ── CTA FINAL ── */
+  #cta-final {
+    padding: 7rem 0;
+    background: var(--bg2);
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  #cta-final::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 600px;
+    height: 300px;
+    background: radial-gradient(ellipse, var(--accent-glow) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  #cta-final .section-title { margin-bottom: 0.8rem; }
+  #cta-final .section-desc { margin: 0 auto 2.5rem; }
+  #cta-final .hero-actions { justify-content: center; }
+
+  /* ── FOOTER ── */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    color: var(--text-dimmer);
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+
+  footer a {
+    color: var(--text-dim);
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+
+  footer a:hover { color: var(--text); }
+
+  .footer-links { display: flex; gap: 1.5rem; }
+
+  /* ── SCROLL REVEAL ── */
+  .reveal {
+    opacity: 0;
+    transform: translateY(24px);
+    transition: opacity 0.7s ease, transform 0.7s ease;
+  }
+
+  .reveal.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .reveal-delay-1 { transition-delay: 0.1s; }
+  .reveal-delay-2 { transition-delay: 0.2s; }
+  .reveal-delay-3 { transition-delay: 0.3s; }
+
+  /* ── CURSOR LINE ── */
+  .cursor {
+    display: inline-block;
+    width: 8px;
+    height: 1em;
+    background: var(--accent);
+    vertical-align: text-bottom;
+    animation: blink 1s step-end infinite;
+  }
+
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 768px) {
+    nav { padding: 1rem; }
+    .nav-links { display: none; }
+    .hero-grid { grid-template-columns: 1fr; gap: 3rem; }
+    .features-grid { grid-template-columns: 1fr; }
+    .code-split { grid-template-columns: 1fr; }
+    .install-grid { grid-template-columns: 1fr; }
+    .badge-strip-inner { grid-template-columns: repeat(2, 1fr); gap: 1rem; }
+    .step { grid-template-columns: 40px 1fr; gap: 1rem; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a href="#" class="nav-logo">html-md-sync <span>v0.1</span></a>
+  <ul class="nav-links">
+    <li><a href="#how">How it works</a></li>
+    <li><a href="#install">Installation</a></li>
+    <li><a href="#config">Config</a></li>
+    <li><a href="#faq">FAQ</a></li>
+    <li><a href="https://github.com/seu-usuario/html-md-sync" class="nav-cta">↗ GitHub</a></li>
+  </ul>
+</nav>
+
+<!-- HERO -->
+<section id="hero">
+  <div class="hero-grid">
+    <div class="hero-copy">
+      <div class="hero-eyebrow">open source · MIT · npm</div>
+      <h1 class="hero-title">
+        Content in Markdown.<br>
+        Layout <em>untouched.</em>
+      </h1>
+      <p class="hero-subtitle">
+        A contract that separates text from structure. Mark your HTML with <code>data-sync</code>, edit the <code>.md</code>, run one command — only content changes.
+      </p>
+      <div class="hero-actions">
+        <a href="#install" class="btn-primary">
+          <span>$ npm i -g html-md-sync</span>
+        </a>
+        <a href="#how" class="btn-secondary">See example →</a>
+      </div>
+    </div>
+
+    <div class="terminal">
+      <div class="terminal-bar">
+        <div class="terminal-dot red"></div>
+        <div class="terminal-dot yellow"></div>
+        <div class="terminal-dot green"></div>
+        <span class="terminal-title">~/my-project</span>
+      </div>
+      <div class="terminal-body">
+        <div><span class="t-prompt">$ </span><span class="t-acc">html-md-sync</span> <span class="t-cmd">push</span></div>
+        <div style="margin-top:0.4rem">
+          <span class="t-dim">↗ Reading</span> <span class="t-blue">content/home.md</span>
+        </div>
+        <div>
+          <span class="t-dim">↗ Mapping</span> <span class="t-blue">4 keys</span> <span class="t-dim">found</span>
+        </div>
+        <div style="color:var(--accent)">✓ hero-title      <span class="t-dim">updated</span></div>
+        <div style="color:var(--accent)">✓ hero-description <span class="t-dim">updated</span></div>
+        <div style="color:var(--accent)">✓ feature-1       <span class="t-dim">updated</span></div>
+        <div style="color:var(--accent)">✓ cta-label       <span class="t-dim">updated</span></div>
+        <div style="margin-top:0.4rem">
+          <span class="t-dim">✦ </span><span class="t-acc">4/4</span><span class="t-dim"> nodes synchronized — layout preserved.</span>
+        </div>
+        <div style="margin-top:0.8rem">
+          <span class="t-prompt">$ </span><span class="cursor"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="badge-strip">
+    <div class="badge-strip-inner">
+      <div class="badge"><span class="badge-dot"></span>Zero heuristics — explicit contract</div>
+      <div class="badge"><span class="badge-dot"></span>Preserves JS, CSS and attributes</div>
+      <div class="badge"><span class="badge-dot"></span>AI‑friendly by design</div>
+      <div class="badge"><span class="badge-dot"></span>CLI in seconds</div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section id="features">
+  <div class="container">
+    <div class="features-header reveal">
+      <p class="section-label">Benefits</p>
+      <h2 class="section-title">Built to <em>not surprise.</em></h2>
+      <p class="section-desc">Predictability is the feature. No magic, no heuristics, no invisible regressions.</p>
+    </div>
+
+    <div class="features-grid">
+      <div class="feature-card reveal">
+        <div class="feature-icon">
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="4" y="4" width="20" height="20" rx="2" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M9 14h10M9 10h6M9 18h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <circle cx="21" cy="7" r="3.5" fill="var(--bg)" stroke="var(--accent)" stroke-width="1.5"/>
+            <path d="M19.5 7l1 1 1.5-1.5" stroke="var(--accent)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="feature-name">Layout safety</div>
+        <div class="feature-desc">Replaces only <code style="color:var(--accent);background:var(--accent-dim);padding:0 3px;border-radius:2px">textContent</code> or <code style="color:var(--accent);background:var(--accent-dim);padding:0 3px;border-radius:2px">innerHTML</code> on marked nodes. Nothing else is touched.</div>
+      </div>
+      <div class="feature-card reveal reveal-delay-1">
+        <div class="feature-icon">
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 8h16M6 14h10M6 20h13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <circle cx="22" cy="14" r="1.5" fill="var(--accent)"/>
+            <circle cx="22" cy="20" r="1.5" fill="var(--accent)"/>
+          </svg>
+        </div>
+        <div class="feature-name">Explicit contract</div>
+        <div class="feature-desc">One <code style="color:var(--accent);background:var(--accent-dim);padding:0 3px;border-radius:2px">data-sync</code> attribute in HTML. One <code style="color:var(--accent);background:var(--accent-dim);padding:0 3px;border-radius:2px"># key</code> section in Markdown. That’s it.</div>
+      </div>
+      <div class="feature-card reveal reveal-delay-2">
+        <div class="feature-icon">
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="14" cy="14" r="9" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M10 14c0-2.5 1.5-4.5 4-4.5s4 2 4 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <path d="M11 17.5h6" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round"/>
+            <circle cx="14" cy="11.5" r="1" fill="currentColor"/>
+          </svg>
+        </div>
+        <div class="feature-name">AI‑friendly</div>
+        <div class="feature-desc">Give only the <code style="color:var(--accent);background:var(--accent-dim);padding:0 3px;border-radius:2px">.md</code> to the model. HTML stays protected. Run <code style="color:var(--accent);background:var(--accent-dim);padding:0 3px;border-radius:2px">push</code> to apply safely.</div>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feature-icon">
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M5 20l4-4 3 3 4-5 4 4" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M5 8h4M5 12h2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <path d="M13 6l2 2-2 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M17 6l2 2-2 2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" opacity="0.4"/>
+          </svg>
+        </div>
+        <div class="feature-name">Minimal CLI</div>
+        <div class="feature-desc"><code style="color:var(--accent);background:var(--accent-dim);padding:0 3px;border-radius:2px">push</code>, <code style="color:var(--accent);background:var(--accent-dim);padding:0 3px;border-radius:2px">pull</code>, <code style="color:var(--accent);background:var(--accent-dim);padding:0 3px;border-radius:2px">init</code>. Three commands to cover your workflow. Zero mandatory config.</div>
+      </div>
+      <div class="feature-card reveal reveal-delay-1">
+        <div class="feature-icon">
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M7 14h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <path d="M11 10l-4 4 4 4" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M17 10l4 4-4 4" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="feature-name">Bidirectional</div>
+        <div class="feature-desc">Extract HTML to Markdown with <code style="color:var(--accent);background:var(--accent-dim);padding:0 3px;border-radius:2px">pull</code>. Use it as a backup before iterating with AI.</div>
+      </div>
+      <div class="feature-card reveal reveal-delay-2">
+        <div class="feature-icon">
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M11 5H8a3 3 0 00-3 3v12a3 3 0 003 3h12a3 3 0 003-3v-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <path d="M16 5h7v7" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M23 5L14 14" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="feature-name">Zero lock-in</div>
+        <div class="feature-desc">No framework dependency. Works with static HTML, templates, or any pipeline that produces HTML.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section id="how">
+  <div class="container">
+    <div class="how-header reveal">
+      <p class="section-label">How it works</p>
+      <h2 class="section-title">Three steps, <em>zero surprises.</em></h2>
+      <p class="section-desc">Mapping is deterministic. What you write in <code style="color:var(--accent);background:var(--accent-dim);padding:0 3px;border-radius:2px">.md</code> goes exactly where you marked in HTML.</p>
+    </div>
+
+    <div class="steps">
+      <!-- STEP 1 -->
+      <div class="step reveal">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <div class="step-title">Annotate HTML with <code style="color:var(--accent);font-size:14px">data-sync</code></div>
+          <p class="step-desc">Add <code>data-sync="key"</code> to any element. Use <code>data-sync-mode="html"</code> when you need rich HTML content.</p>
+          <div class="code-block">
+            <div class="code-block-header">
+              <span class="lang-badge lang-html">HTML</span>
+              index.html
+            </div>
+            <pre><span class="tag">&lt;h1</span> <span class="attr">data-sync</span>=<span class="str">"hero-title"</span><span class="tag">&gt;</span>
+  Original Title
+<span class="tag">&lt;/h1&gt;</span>
+
+<span class="tag">&lt;p</span> <span class="attr">data-sync</span>=<span class="str">"hero-desc"</span><span class="tag">&gt;</span>
+  Original description.
+<span class="tag">&lt;/p&gt;</span>
+
+<span class="tag">&lt;div</span> <span class="attr">data-sync</span>=<span class="str">"features"</span>
+     <span class="attr">data-sync-mode</span>=<span class="str">"html"</span><span class="tag">&gt;</span>
+  <span class="c">&lt;!-- Rich HTML here --&gt;</span>
+<span class="tag">&lt;/div&gt;</span></pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 2 -->
+      <div class="step reveal">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <div class="step-title">Write content in Markdown</div>
+          <p class="step-desc">Create sections with <code># key</code> matching the HTML <code>data-sync</code> values. Hand this file to the language model for copy edits.</p>
+          <div class="code-block">
+            <div class="code-block-header">
+              <span class="lang-badge lang-md">MD</span>
+              content/home.md
+            </div>
+            <pre><span class="hl"># hero-title</span>
+The Future of AI Orchestration
+
+<span class="hl"># hero-desc</span>
+Turn briefs into
+functional MVPs in 48 hours.
+
+<span class="hl"># features</span>
+&lt;ul&gt;
+  &lt;li&gt;Fast&lt;/li&gt;
+  &lt;li&gt;Secure&lt;/li&gt;
+&lt;/ul&gt;</pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 3 -->
+      <div class="step reveal">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <div class="step-title">Run the sync</div>
+          <p class="step-desc">Use <code>push</code> to apply Markdown to HTML or <code>pull</code> to extract HTML to Markdown. Layout remains untouched.</p>
+          <div class="code-split">
+            <div class="code-block">
+              <div class="code-block-header">
+                <span class="lang-badge lang-sh">SH</span>
+                MD → HTML
+              </div>
+              <pre><span class="hl">html-md-sync push</span>
+<span class="c"># apply .md to .html</span></pre>
+            </div>
+            <div class="code-block">
+              <div class="code-block-header">
+                <span class="lang-badge lang-sh">SH</span>
+                HTML → MD
+              </div>
+              <pre><span class="hl">html-md-sync pull</span>
+<span class="c"># extract HTML to .md</span></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- INSTALL -->
+<section id="install">
+  <div class="container">
+    <div class="reveal" style="margin-bottom:3rem">
+      <p class="section-label">Installation</p>
+      <h2 class="section-title">Ready in <em>30 seconds.</em></h2>
+    </div>
+
+    <div class="install-grid">
+      <div>
+        <p style="font-size:13px;color:var(--text-dim);margin-bottom:1.5rem">Install globally or as a project devDependency:</p>
+
+        <div class="code-block reveal" style="margin-bottom:1rem">
+          <div class="code-block-header">
+            <span class="lang-badge lang-sh">SH</span>
+            Global
+          </div>
+          <pre><span class="hl">npm i -g html-md-sync</span></pre>
+        </div>
+
+        <div class="code-block reveal reveal-delay-1" style="margin-bottom:1rem">
+          <div class="code-block-header">
+            <span class="lang-badge lang-sh">SH</span>
+            Local (recommended)
+          </div>
+          <pre><span class="hl">npm i -D html-md-sync</span>
+<span class="t-dim">npx html-md-sync init</span></pre>
+        </div>
+
+        <div class="code-block reveal reveal-delay-2">
+          <div class="code-block-header">
+            <span class="lang-badge lang-sh">SH</span>
+            Quick start
+          </div>
+          <pre><span class="c"># create sync-config.json</span>
+<span class="hl">html-md-sync init</span>
+
+<span class="c"># apply MD → HTML</span>
+<span class="hl">html-md-sync push</span>
+
+<span class="c"># extract HTML → MD</span>
+<span class="hl">html-md-sync pull</span></pre>
+        </div>
+      </div>
+
+      <div class="reveal reveal-delay-1">
+        <p style="font-size:13px;color:var(--text-dim);margin-bottom:1.5rem">Command reference:</p>
+        <table class="cli-table">
+          <tr>
+            <td>help</td>
+            <td>Show help and available commands</td>
+          </tr>
+          <tr>
+            <td>version</td>
+            <td>Installed CLI version</td>
+          </tr>
+          <tr>
+            <td>init [--config]</td>
+            <td>Create a default <code style="color:var(--accent);background:var(--accent-dim);padding:0 3px;border-radius:2px">sync-config.json</code></td>
+          </tr>
+          <tr>
+            <td>push [--config]</td>
+            <td>Apply content from <code style="color:var(--accent);background:var(--accent-dim);padding:0 3px;border-radius:2px">.md</code> into <code style="color:var(--accent);background:var(--accent-dim);padding:0 3px;border-radius:2px">.html</code></td>
+          </tr>
+          <tr>
+            <td>pull [--config]</td>
+            <td>Extract content from <code style="color:var(--accent);background:var(--accent-dim);padding:0 3px;border-radius:2px">.html</code> to <code style="color:var(--accent);background:var(--accent-dim);padding:0 3px;border-radius:2px">.md</code></td>
+          </tr>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CONFIG -->
+<section id="config">
+  <div class="container">
+    <div class="reveal" style="margin-bottom:3rem">
+      <p class="section-label">Configuration</p>
+      <h2 class="section-title">One file. <em>Everything mapped.</em></h2>
+      <p class="section-desc"><code style="color:var(--accent);background:var(--accent-dim);padding:0 4px;border-radius:2px">sync-config.json</code> defines which files to sync and how.</p>
+    </div>
+
+    <div class="code-split reveal">
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="lang-badge lang-json">JSON</span>
+          sync-config.json
+        </div>
+        <pre>{
+  <span class="attr">"mappings"</span>: [
+    {
+      <span class="attr">"html"</span>: <span class="str">"./src/index.html"</span>,
+      <span class="attr">"md"</span>: <span class="str">"./content/home.md"</span>,
+      <span class="attr">"strategy"</span>: <span class="str">"data-attribute"</span>
+    }
+  ],
+  <span class="attr">"options"</span>: {
+    <span class="attr">"preserveAttributes"</span>: <span class="val">true</span>,
+    <span class="attr">"minifyOutput"</span>: <span class="val">false</span>
+  }
+}</pre>
+      </div>
+
+      <div style="padding-top:0.5rem">
+        <table class="cli-table">
+          <tr>
+            <td>mappings[].html</td>
+            <td>Path to the HTML file</td>
+          </tr>
+          <tr>
+            <td>mappings[].md</td>
+            <td>Path to the Markdown file</td>
+          </tr>
+          <tr>
+            <td>strategy</td>
+            <td>Reserved — MVP uses <code style="color:var(--accent);background:var(--accent-dim);padding:0 3px;border-radius:2px">data-attribute</code></td>
+          </tr>
+          <tr>
+            <td>preserveAttributes</td>
+            <td>Keep all HTML attributes intact</td>
+          </tr>
+          <tr>
+            <td>minifyOutput</td>
+            <td>Minify HTML output (reserved)</td>
+          </tr>
+        </table>
+
+        <div style="margin-top:2rem;padding:1.2rem;background:var(--accent-dim);border:1px solid rgba(198,241,53,0.2);border-radius:6px">
+          <p style="font-size:12px;color:var(--accent);margin-bottom:0.4rem;font-weight:700">↑ Contract guarantees</p>
+          <ul style="font-size:12px;color:var(--text-dim);line-height:2;list-style:none">
+            <li>→ Keys in MD with no match in HTML: <strong style="color:var(--text)">ignored</strong></li>
+            <li>→ Keys in HTML with no match in MD: <strong style="color:var(--text)">left unchanged</strong></li>
+            <li>→ Duplicate keys in MD: <strong style="color:var(--text)">last occurrence wins</strong></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section id="faq">
+  <div class="container">
+    <div class="reveal" style="margin-bottom:3rem">
+      <p class="section-label">FAQ</p>
+      <h2 class="section-title">Frequently <em>asked questions.</em></h2>
+    </div>
+
+    <div class="faq-list reveal">
+      <details class="faq-item">
+        <summary class="faq-q">Can I use this with frameworks (React, Vue, etc.)? <span class="faq-icon">+</span></summary>
+        <p class="faq-a">Yes. Point <code>mappings[].html</code> to the final HTML or to the templates that produce HTML. The tool is framework‑agnostic — it operates directly on the HTML file.</p>
+      </details>
+
+      <details class="faq-item">
+        <summary class="faq-q">Does the tool modify attributes, classes or scripts? <span class="faq-icon">+</span></summary>
+        <p class="faq-a">No. Only the content of nodes marked with <code>data-sync</code> is changed. Classes, IDs, event handlers, scripts and any other attributes remain untouched.</p>
+      </details>
+
+      <details class="faq-item">
+        <summary class="faq-q">How should I version this? <span class="faq-icon">+</span></summary>
+        <p class="faq-a">Version all three: <code>.md</code>, <code>.html</code> and <code>sync-config.json</code>. Before iterating with AI, run <code>pull</code> to capture the current HTML state in Markdown — a clean snapshot.</p>
+      </details>
+
+      <details class="faq-item">
+        <summary class="faq-q">Can I sync rich HTML content? <span class="faq-icon">+</span></summary>
+        <p class="faq-a">Yes. Mark the node with <code>data-sync-mode="html"</code> and write HTML directly in the corresponding Markdown section. The tool uses <code>innerHTML</code> instead of <code>textContent</code>.</p>
+      </details>
+
+      <details class="faq-item">
+        <summary class="faq-q">What if a key exists in MD but not in HTML? <span class="faq-icon">+</span></summary>
+        <p class="faq-a">It’s silently ignored during <code>push</code>. No error is thrown and HTML remains unaffected. The opposite — a key in HTML with no match in MD — keeps the original content unchanged.</p>
+      </details>
+
+      <details class="faq-item">
+        <summary class="faq-q">How do I integrate with AI workflows? <span class="faq-icon">+</span></summary>
+        <p class="faq-a">Give only the <code>.md</code> to the language model for copy edits. HTML stays protected. After editing, run <code>html-md-sync push</code> to safely apply the content. For a backup of the current state, run <code>pull</code> before iterating.</p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- CTA FINAL -->
+<section id="cta-final">
+  <div class="container">
+    <p class="section-label" style="text-align:center">Ready to start?</p>
+    <h2 class="section-title reveal">Sync with <em>confidence.</em></h2>
+    <p class="section-desc reveal reveal-delay-1">One line in the terminal. Content updated. Layout untouched. Exactly as it should be.</p>
+    <div class="hero-actions reveal reveal-delay-2">
+      <a href="#install" class="btn-primary">$ npm i -g html-md-sync</a>
+      <a href="https://github.com/seu-usuario/html-md-sync" class="btn-secondary">↗ View on GitHub</a>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <span>html-md-sync · MIT License · made with ♥</span>
+  <div class="footer-links">
+    <a href="https://github.com/seu-usuario/html-md-sync">GitHub</a>
+    <a href="https://npmjs.com/package/html-md-sync">npm</a>
+    <a href="#faq">FAQ</a>
+  </div>
+</footer>
+
+<script>
+  // Scroll reveal
+  const reveals = document.querySelectorAll('.reveal');
+  const observer = new IntersectionObserver(
+    (entries) => entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); }),
+    { threshold: 0.1, rootMargin: '0px 0px -60px 0px' }
+  );
+  reveals.forEach(el => observer.observe(el));
+
+  // Hero immediately visible
+  document.querySelectorAll('#hero .reveal').forEach(el => el.classList.add('visible'));
+</script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+# Exclude any site HTML from the published package
+**/index.html
+site/
+public/
+docs/
+examples/
+scripts/
+test/
+tests/
+coverage/
+.vscode/
+.idea/
+.github/
+*.log
+.DS_Store

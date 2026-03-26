@@ -1,0 +1,44 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Node
+node_modules/
+.npm/
+.node_repl_history
+
+# Build output
+dist/
+build/
+coverage/
+.cache/
+.parcel-cache/
+.turbo/
+
+# Framework caches
+.next/
+.nuxt/
+
+# Environments
+.env
+.env.*.local
+
+# IDE/editor
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Deploy/platform
+.vercel/
+.netlify/
+
+# Temp
+tmp/
+temp/

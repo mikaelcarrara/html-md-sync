@@ -1,0 +1,33 @@
+{
+  "name": "html-md-sync",
+  "version": "0.1.1",
+  "description": "Deterministically sync content between HTML (data-sync) and Markdown while preserving layout.",
+  "license": "MIT",
+  "type": "commonjs",
+  "main": "src/index.js",
+  "bin": {
+    "html-md-sync": "bin/html-md-sync.js"
+  },
+  "files": [
+    "bin",
+    "src"
+  ],
+  "scripts": {
+    "test": "node -e \"console.log('ok')\""
+  },
+  "keywords": [
+    "html",
+    "markdown",
+    "sync",
+    "cli",
+    "content",
+    "data-attributes",
+    "deterministic"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "cheerio": "^1.0.0"
+  }
+}
